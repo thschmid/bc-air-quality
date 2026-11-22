@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* Cross-browser scrollbar smoothing */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
