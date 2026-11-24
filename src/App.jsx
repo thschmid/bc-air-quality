@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 
-// Airshed station telemetry & coordinates
+// Airshed station telemetry & coordinates (including Kamloops & primary BC zones)
 const STATIONS = [
   {
     id: 'metro-vancouver',
@@ -20,6 +20,26 @@ const STATIONS = [
       no2: 22.5,  // ppb
       so2: 1.8,   // ppb
       o3: 24.0,   // ppb
+    },
+  },
+  {
+    id: 'kamloops-fed',
+    name: 'Kamloops (Federal Building)',
+    region: 'Southern Interior',
+    coordinates: { lat: 50.6745, lon: -120.3273 },
+    weather: {
+      temperature: 16.4,
+      windSpeed: 2.8, // km/h (stagnant valley conditions)
+      windDirection: 'CALM',
+      condition: 'Valley Inversion / Trapped Smoke',
+      humidity: 52,
+    },
+    pollutants: {
+      pm25: 22.1, // ug/m3
+      pm10: 36.8, // ug/m3
+      no2: 18.2,  // ppb
+      so2: 1.1,   // ppb
+      o3: 27.5,   // ppb
     },
   },
   {
@@ -85,77 +105,74 @@ const STATIONS = [
 ];
 
 // Regulatory Benchmarks Matrix
+// Base units: ug/m3 for particulates, ppb for gaseous contaminants
 const BENCHMARKS = [
   {
     key: 'pm25',
     name: 'Fine Particulate Matter (PM₂.₅)',
     window: '24-Hour Average',
-    nativeUnit: 'µg/m³',
     isGas: false,
     mw: null,
-    bcLimit: 25.0,
-    caaqsLimit: 27.0,
-    whoLimit: 15.0,
+    bcLimit: 25.0,     // ug/m3
+    caaqsLimit: 27.0,  // ug/m3
+    whoLimit: 15.0,    // ug/m3
     clinicalFocus: 'Alveolar penetration, systemic cardiovascular inflammation, asthma exacerbation.',
   },
   {
     key: 'pm10',
     name: 'Coarse Particulate Matter (PM₁₀)',
     window: '24-Hour Average',
-    nativeUnit: 'µg/m³',
     isGas: false,
     mw: null,
-    bcLimit: 50.0,
-    caaqsLimit: 50.0,
-    whoLimit: 45.0,
+    bcLimit: 50.0,     // ug/m3
+    caaqsLimit: 50.0,  // ug/m3
+    whoLimit: 45.0,    // ug/m3
     clinicalFocus: 'Upper airway irritation, nasopharyngeal inflammation, chronic bronchitis.',
   },
   {
     key: 'no2',
     name: 'Nitrogen Dioxide (NO₂)',
     window: '1-Hour Maximum',
-    nativeUnit: 'ppb',
     isGas: true,
     mw: 46.01,
-    bcLimit: 60.0, // ppb (113 µg/m³)
-    caaqsLimit: 60.0, // ppb (113 µg/m³)
-    whoLimit: 106.0, // ~200 µg/m³ converted to ppb
+    bcLimit: 60.0,     // ppb (113 ug/m3)
+    caaqsLimit: 60.0,  // ppb (113 ug/m3)
+    whoLimit: 106.0,   // ppb (200 ug/m3)
     clinicalFocus: 'Acute bronchial reactivity, bronchospasm in asthmatics, airway resistance.',
   },
   {
     key: 'so2',
     name: 'Sulphur Dioxide (SO₂)',
     window: '1-Hour Maximum',
-    nativeUnit: 'ppb',
     isGas: true,
     mw: 64.07,
-    bcLimit: 70.0, // ppb (183 µg/m³)
-    caaqsLimit: 70.0, // ppb (183 µg/m³)
-    whoLimit: 191.0, // ~500 µg/m³ (10-min target) in ppb
+    bcLimit: 70.0,     // ppb (183 ug/m3)
+    caaqsLimit: 70.0,  // ppb (183 ug/m3)
+    whoLimit: 191.0,   // ppb (~500 ug/m3 10-min guideline)
     clinicalFocus: 'Acute reflex bronchoconstriction, ocular and upper respiratory mucosal irritation.',
   },
   {
     key: 'o3',
     name: 'Ground-Level Ozone (O₃)',
     window: '8-Hour Maximum',
-    nativeUnit: 'ppb',
     isGas: true,
     mw: 48.00,
-    bcLimit: 62.0, // ppb (123 µg/m³)
-    caaqsLimit: 60.0, // ppb (120 µg/m³)
-    whoLimit: 51.0, // ~100 µg/m³ in ppb
+    bcLimit: 62.0,     // ppb (123 ug/m3)
+    caaqsLimit: 60.0,  // ppb (120 ug/m3)
+    whoLimit: 51.0,    // ppb (100 ug/m3)
     clinicalFocus: 'Potent oxidizing agent inducing substernal airway pain, reduced lung capacity.',
   },
 ];
 
 export default function App() {
-  const [selectedStationId, setSelectedStationId] = useState('metro-vancouver');
-  const [unitMode, setUnitMode] = useState('native'); // 'native' (ug/m3 for PM, ppb for gas) or 'mass' (all ug/m3)
+  const [selectedStationId, setSelectedStationId] = useState('kamloops-fed');
+  // 'mass' (µg/m³ for all) or 'ppm' (parts per million for gases, µg/m³ for PM)
+  const [unitMode, setUnitMode] = useState('mass');
   const [geoStatus, setGeoStatus] = useState('');
   const [showLegalModal, setShowLegalModal] = useState(false);
 
   const currentStation = useMemo(() => {
-    return STATIONS.find((s) => s.id === selectedStationId) || STATIONS;
+    return STATIONS.find((s) => s.id === selectedStationId) || STATIONS[0];
   }, [selectedStationId]);
 
   // Geolocation handler (Euclidean distance matching)
@@ -170,7 +187,7 @@ export default function App() {
         const uLat = pos.coords.latitude;
         const uLon = pos.coords.longitude;
 
-        let closestStation = STATIONS;
+        let closestStation = STATIONS[0];
         let minDistance = Infinity;
 
         STATIONS.forEach((st) => {
@@ -234,21 +251,28 @@ export default function App() {
   }, [currentStation]);
 
   // Unit conversion helper
-  const formatValue = (pollutantKey, value) => {
+  // Base stored value for gases: ppb. Particulates: ug/m3.
+  const formatValue = (pollutantKey, valueInBaseUnit) => {
     const item = BENCHMARKS.find((b) => b.key === pollutantKey);
-    if (!item) return { val: value, unit: '' };
+    if (!item) return { val: valueInBaseUnit, unit: '' };
 
+    // Particulate matter is always mass concentration
     if (!item.isGas) {
-      return { val: value.toFixed(1), unit: 'µg/m³' };
+      return { val: Number(valueInBaseUnit).toFixed(1), unit: 'µg/m³' };
     }
 
+    // Gaseous Contaminant Conversion:
+    // C_ug/m3 = (C_ppb * MW) / 24.45
+    // C_ppm = C_ppb / 1000
     if (unitMode === 'mass') {
-      // Convert ppb to ug/m3: C_ug = (C_ppb * MW) / 24.45
-      const ugm3 = (value * item.mw) / 24.45;
+      const ugm3 = (valueInBaseUnit * item.mw) / 24.45;
       return { val: ugm3.toFixed(1), unit: 'µg/m³' };
     }
 
-    return { val: value.toFixed(1), unit: 'ppb' };
+    // unitMode === 'ppm'
+    const ppm = valueInBaseUnit / 1000;
+    // Format to 3 decimal places for readable ppm values (e.g., 0.022 ppm)
+    return { val: ppm.toFixed(3), unit: 'ppm' };
   };
 
   return (
@@ -263,7 +287,7 @@ export default function App() {
                 BC Air Quality & Weather Monitor
               </h1>
               <span className="text-xs bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">
-                v1.0
+                v1.1
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
@@ -290,7 +314,7 @@ export default function App() {
             <span>LIVE (Hourly unverified open data)</span>
           </div>
           <div className="flex items-center gap-3">
-            <span>OBSERVATION STAMP: 2026-11-21 19:00 PST</span>
+            <span>OBSERVATION STAMP: 2026-11-23 16:30 PST</span>
             <span className="text-emerald-400">● 100% SENSORS ONLINE</span>
           </div>
         </div>
@@ -317,7 +341,7 @@ export default function App() {
             </select>
             <button
               onClick={handleNearMe}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
             >
               <span>📍</span>
               <span>Find Nearest Station</span>
@@ -329,25 +353,25 @@ export default function App() {
             )}
           </div>
 
-          {/* Unit Switcher */}
+          {/* Unit Switcher: Mass Concentration vs Parts Per Million */}
           <div className="flex items-center gap-2 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Gas Display:</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Gas Unit:</span>
             <div className="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5 text-xs font-medium">
               <button
-                onClick={() => setUnitMode('native')}
-                className={`px-2.5 py-1 rounded-md transition ${
-                  unitMode === 'native' ? 'bg-white text-blue-700 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Mixing Ratio (ppb)
-              </button>
-              <button
                 onClick={() => setUnitMode('mass')}
-                className={`px-2.5 py-1 rounded-md transition ${
+                className={`px-3 py-1.5 rounded-md transition cursor-pointer ${
                   unitMode === 'mass' ? 'bg-white text-blue-700 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Mass Conc. (µg/m³)
+                Microgram (µg/m³)
+              </button>
+              <button
+                onClick={() => setUnitMode('ppm')}
+                className={`px-3 py-1.5 rounded-md transition cursor-pointer ${
+                  unitMode === 'ppm' ? 'bg-white text-blue-700 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Parts Per Million (ppm)
               </button>
             </div>
           </div>
@@ -454,9 +478,12 @@ export default function App() {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {BENCHMARKS.map((b) => {
                   const rawVal = currentStation.pollutants[b.key];
-                  const formatted = formatValue(b.key, rawVal);
+                  const liveFormatted = formatValue(b.key, rawVal);
+                  const bcFormatted = formatValue(b.key, b.bcLimit);
+                  const caaqsFormatted = formatValue(b.key, b.caaqsLimit);
+                  const whoFormatted = formatValue(b.key, b.whoLimit);
 
-                  // Evaluation logic
+                  // Evaluation logic against thresholds
                   const exceedsBC = rawVal > b.bcLimit;
                   const exceedsWHO = rawVal > b.whoLimit;
 
@@ -489,18 +516,18 @@ export default function App() {
                       <td className="py-3 px-3 font-medium text-slate-600">{b.window}</td>
                       <td className="py-3 px-3">
                         <span className="font-mono font-bold text-sm text-slate-900">
-                          {formatted.val}
+                          {liveFormatted.val}
                         </span>{' '}
-                        <span className="text-slate-500 font-mono text-[11px]">{formatted.unit}</span>
+                        <span className="text-slate-500 font-mono text-[11px]">{liveFormatted.unit}</span>
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-600">
-                        {b.bcLimit} {b.nativeUnit}
+                        {bcFormatted.val} <span className="text-[11px] text-slate-400">{bcFormatted.unit}</span>
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-600">
-                        {b.caaqsLimit} {b.nativeUnit}
+                        {caaqsFormatted.val} <span className="text-[11px] text-slate-400">{caaqsFormatted.unit}</span>
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-600">
-                        {b.whoLimit} {b.nativeUnit}
+                        {whoFormatted.val} <span className="text-[11px] text-slate-400">{whoFormatted.unit}</span>
                       </td>
                       <td className="py-3 px-3">{statusBadge}</td>
                     </tr>
@@ -539,7 +566,7 @@ export default function App() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setShowLegalModal(true)}
-              className="text-slate-300 hover:text-white underline transition"
+              className="text-slate-300 hover:text-white underline transition cursor-pointer"
             >
               Legal & Disclaimers
             </button>
@@ -563,7 +590,7 @@ export default function App() {
               <h3 className="text-lg font-bold text-slate-900">Terms of Use & Legal Disclaimers</h3>
               <button
                 onClick={() => setShowLegalModal(false)}
-                className="text-slate-400 hover:text-slate-700 text-lg font-bold px-2"
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 cursor-pointer"
               >
                 ✕
               </button>
@@ -587,7 +614,7 @@ export default function App() {
             <div className="pt-3 border-t border-slate-200 text-right">
               <button
                 onClick={() => setShowLegalModal(false)}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs px-4 py-2 rounded-lg transition"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs px-4 py-2 rounded-lg transition cursor-pointer"
               >
                 I Understand and Acknowledge
               </button>
