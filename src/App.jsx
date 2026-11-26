@@ -294,7 +294,7 @@ export default function App() {
             </p>
           </div>
           <a
-            href="https://github.com"
+            href="https://github.com/thschmid/bc-air-quality"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5"
