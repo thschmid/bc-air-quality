@@ -271,7 +271,6 @@ export default function App() {
 
     // unitMode === 'ppm'
     const ppm = valueInBaseUnit / 1000;
-    // Format to 3 decimal places for readable ppm values (e.g., 0.022 ppm)
     return { val: ppm.toFixed(3), unit: 'ppm' };
   };
 
@@ -287,7 +286,7 @@ export default function App() {
                 BC Air Quality & Weather Monitor
               </h1>
               <span className="text-xs bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">
-                v1.1
+                v1.2
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
@@ -314,7 +313,7 @@ export default function App() {
             <span>LIVE (Hourly unverified open data)</span>
           </div>
           <div className="flex items-center gap-3">
-            <span>OBSERVATION STAMP: 2026-11-23 16:30 PST</span>
+            <span>OBSERVATION STAMP: 2026-11-26 08:30 PST</span>
             <span className="text-emerald-400">● 100% SENSORS ONLINE</span>
           </div>
         </div>
@@ -353,7 +352,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Unit Switcher: Mass Concentration vs Parts Per Million */}
+          {/* Unit Switcher */}
           <div className="flex items-center gap-2 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Gas Unit:</span>
             <div className="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5 text-xs font-medium">
@@ -454,12 +453,29 @@ export default function App() {
         {/* 5. Pollutant Matrix Table */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-200">
-            <h2 className="text-base font-bold text-slate-900">
-              Criteria Contaminant Compliance Matrix
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Real-time station observations evaluated simultaneously against Provincial, Federal, and International guidelines.
-            </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Criteria Contaminant Compliance Matrix
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Real-time station observations evaluated against Provincial, Federal, and International guidelines.
+                </p>
+              </div>
+
+              {/* Threshold Compliance Legend */}
+              <div className="flex items-center gap-3 text-xs bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shrink-0">
+                <span className="text-slate-500 font-semibold uppercase tracking-wider text-[10px]">Legend:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                  <span className="text-emerald-800 font-medium text-[11px]">Meets Target (Within Limit)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
+                  <span className="text-amber-800 font-medium text-[11px]">Exceeds Target (Above Limit)</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -472,7 +488,6 @@ export default function App() {
                   <th className="py-3 px-3">BC Prov. AQO</th>
                   <th className="py-3 px-3">CAAQS (Fed)</th>
                   <th className="py-3 px-3">WHO (2021)</th>
-                  <th className="py-3 px-3">Compliance Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -483,29 +498,10 @@ export default function App() {
                   const caaqsFormatted = formatValue(b.key, b.caaqsLimit);
                   const whoFormatted = formatValue(b.key, b.whoLimit);
 
-                  // Evaluation logic against thresholds
+                  // Threshold checks: live reading exceeding individual guidelines
                   const exceedsBC = rawVal > b.bcLimit;
+                  const exceedsCAAQS = rawVal > b.caaqsLimit;
                   const exceedsWHO = rawVal > b.whoLimit;
-
-                  let statusBadge = (
-                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                      Within Safe Targets
-                    </span>
-                  );
-
-                  if (exceedsBC) {
-                    statusBadge = (
-                      <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-red-100 text-red-800">
-                        Exceeds BC Limit
-                      </span>
-                    );
-                  } else if (exceedsWHO) {
-                    statusBadge = (
-                      <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800">
-                        Exceeds WHO Target
-                      </span>
-                    );
-                  }
 
                   return (
                     <tr key={b.key} className="hover:bg-slate-50 transition">
@@ -520,16 +516,48 @@ export default function App() {
                         </span>{' '}
                         <span className="text-slate-500 font-mono text-[11px]">{liveFormatted.unit}</span>
                       </td>
-                      <td className="py-3 px-3 font-mono text-slate-600">
-                        {bcFormatted.val} <span className="text-[11px] text-slate-400">{bcFormatted.unit}</span>
+
+                      {/* BC Provincial AQO Limit */}
+                      <td className="py-3 px-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-xs font-mono font-medium ${
+                            exceedsBC
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}
+                        >
+                          {bcFormatted.val}{' '}
+                          <span className="text-[10px] opacity-75">{bcFormatted.unit}</span>
+                        </span>
                       </td>
-                      <td className="py-3 px-3 font-mono text-slate-600">
-                        {caaqsFormatted.val} <span className="text-[11px] text-slate-400">{caaqsFormatted.unit}</span>
+
+                      {/* Canadian CAAQS (Federal) Limit */}
+                      <td className="py-3 px-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-xs font-mono font-medium ${
+                            exceedsCAAQS
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}
+                        >
+                          {caaqsFormatted.val}{' '}
+                          <span className="text-[10px] opacity-75">{caaqsFormatted.unit}</span>
+                        </span>
                       </td>
-                      <td className="py-3 px-3 font-mono text-slate-600">
-                        {whoFormatted.val} <span className="text-[11px] text-slate-400">{whoFormatted.unit}</span>
+
+                      {/* WHO 2021 Guideline Limit */}
+                      <td className="py-3 px-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-xs font-mono font-medium ${
+                            exceedsWHO
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}
+                        >
+                          {whoFormatted.val}{' '}
+                          <span className="text-[10px] opacity-75">{whoFormatted.unit}</span>
+                        </span>
                       </td>
-                      <td className="py-3 px-3">{statusBadge}</td>
                     </tr>
                   );
                 })}
